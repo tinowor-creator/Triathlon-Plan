@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triathlon Hub - Ironman 70.3 Zell am See</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --border: #334155;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 25px; }
+        h1 { color: var(--accent); margin: 0 0 5px 0; }
+        
+        .tab-buttons { display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; }
+        .tab-btn {
+            background: var(--card-bg); color: var(--text); border: 1px solid var(--border);
+            padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold;
+        }
+        .tab-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        .card {
+            background-color: var(--card-bg); border-radius: 12px;
+            padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
+        th { background-color: #0f172a; color: var(--accent); }
+        td input {
+            width: 95%; background: transparent; border: none; color: var(--text);
+            font-size: 0.95rem; font-family: inherit;
+        }
+        td input:focus { outline: 1px solid var(--accent); background: #0f172a; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        button.action-btn {
+            background-color: var(--accent); color: #000; border: none;
+            padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;
+        }
+        
+        .api-input-box { margin-bottom: 15px; }
+        .api-input-box input {
+            width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);
+            background: #0f172a; color: var(--text); box-sizing: border-box;
+        }
+        #ai-output {
+            background: #0f172a; border-left: 4px solid var(--accent);
+            padding: 15px; margin-top: 15px; border-radius: 4px; white-space: pre-wrap; font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Ironman 70.3 Zell am See 2027</h1>
+            <p style="color: var(--text-muted);">Interaktiver 2-Wochen-Wechselplan mit KI-Bewertung</p>
+        </header>
+
+        <!-- Umschaltung Woche A / Woche B -->
+        <div class="tab-buttons">
+            <button class="tab-btn active" onclick="switchWeek('A')">Woche A (Fokus: Schwellen & Tempo)</button>
+            <button class="tab-btn" onclick="switchWeek('B')">Woche B (Fokus: Kraft & Grundlagen-Umfang)</button>
+        </div>
+
+        <!-- Trainingsplan Tabelle -->
+        <div class="card">
+            <h2 id="week-title" style="margin-top:0; color: var(--accent);">Trainingsplan Woche A</h2>
+            <p style="color: var(--text-muted); font-size:0.85rem;">Tipp: Du kannst die Inhalte der Felder direkt anklicken und manuell ändern. Die Änderungen werden automatisch lokal gespeichert!</p>
+            
+            <table id="plan-table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">Tag</th>
+                        <th style="width: 40%;">Morgen / Haupt-Einheit</th>
+                        <th style="width: 45%;">Nachmittag / Ergänzung</th>
+                    </tr>
+                </thead>
+                <tbody id="plan-body">
+                    <!-- Wird dynamisch per JS befüllt -->
+                </tbody>
+            </table>
+
+            <div class="btn-group">
+                <button class="action-btn" onclick="savePlan()">Plan Speichern</button>
+                <button class="action-btn" style="background-color: var(--success); color: white;" onclick="askAI('evaluate')">🤖 KI-Plan-Bewertung starten</button>
+                <button class="action-btn" style="background-color: #8b5cf6; color: white;" onclick="askAI('suggest')">💡 KI-Alternativ-Vorschlag holen</button>
+            </div>
+        </div>
+
+        <!-- KI-Assistent Bereich -->
+        <div class="card">
+            <h3 style="margin-top:0; color: var(--accent);">🤖 Dein KI-Coach (Gemini Integration)</h3>
+            <div class="api-input-box">
+                <label style="font-size: 0.85rem; color: var(--text-muted);">Google Gemini API Key (wird nur lokal in deinem Browser gespeichert):</label>
+                <input type="password" id="api-key" placeholder="Deinen API-Schlüssel hier einfügen..." onchange="saveApiKey()">
+            </div>
+            <div id="ai-output">Gib oben deinen API-Key ein und klicke auf "KI-Plan-Bewertung" oder "KI-Alternativ-Vorschlag", um ein automatisches Feedback zu deiner Trainingswoche zu erhalten.</div>
+        </div>
+    </div>
+
+    <script>
+        // Standard-Pläne A und B
+        const defaultPlans = {
+            A: [
+                { day: "Montag", main: "Lauf: Intervall-Session (Z2/Z4 Schwellen-Reize)", sec: "Dehnen & Regeneration" },
+                { day: "Dienstag", main: "Schwimmen: 2.000m Ausdauer & Swolf-Technik", sec: "Schule / Kraft-Mobilisation" },
+                { day: "Mittwoch", main: "Lauf: Morgendlicher Schwellenlauf (5km / 406W)", sec: "Schwimmen: 2.000m (Basisausdauer)" },
+                { day: "Donnerstag", main: "Regeneration / Aktives Dehnen & Mobility", sec: "Schule / Freizeit" },
+                { day: "Freitag", main: "Rad (Marin Stelvio): Zügige Ausfahrt (360W rFTP)", sec: "Pfadfinder / Vorbereitung Wochenende" },
+                { day: "Samstag", main: "Rad/Lauf: Langer GA1-Koppel-Grundlagenblock", sec: "Freie Erholung" },
+                { day: "Sonntag", main: "Lauf: Langer Grundlagenlauf (175 SPM Cadence)", sec: "Wochen-Review" }
+            ],
+            B: [
+                { day: "Montag", main: "Lauf: Hügelläufe & Kraftausdauer", sec: "Mobility & Core" },
+                { day: "Dienstag", main: "Schwimmen: Sprint-Intervalle & Technik-Drills", sec: "Schule" },
+                { day: "Mittwoch", main: "Rad: Rollen-/Ergometer-Einheit GA1", sec: "Lauf: Lockeres Auslaufen GA1" },
+                { day: "Donnerstag", main: "Krafttraining (Beine & Rumpf) + Dehnen", sec: "Regeneration" },
+                { day: "Freitag", main: "Schwimmen: 2.500m Langdistanz-Fokus", sec: "Pfadfinder" },
+                { day: "Samstag", main: "Rad: Langdistanz-Ausritt mit Höhenmetern", sec: "Ernährungstest im Training" },
+                { day: "Sonntag", main: "Lauf: GA1-Dauerlauf mit Koppel-Abschnitt", sec: "Voransicht Woche A" }
+            ]
+        };
+
+        let currentWeek = 'A';
+        let plans = JSON.parse(localStorage.getItem('triathlon_plans')) || defaultPlans;
+
+        function init() {
+            document.getElementById('api-key').value = localStorage.getItem('gemini_api_key') || '';
+            renderPlan();
+        }
+
+        function switchWeek(week) {
+            currentWeek = week;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('week-title').innerText = `Trainingsplan Woche ${week}`;
+            renderPlan();
+        }
+
+        function renderPlan() {
+            const tbody = document.getElementById('plan-body');
+            tbody.innerHTML = '';
+            plans[currentWeek].forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${item.day}</strong></td>
+                    <td><input type="text" value="${item.main}" onchange="updateCell(${index}, 'main', this.value)"></td>
+                    <td><input type="text" value="${item.sec}" onchange="updateCell(${index}, 'sec', this.value)"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateCell(index, field, value) {
+            plans[currentWeek][index][field] = value;
+            savePlan();
+        }
+
+        function savePlan() {
+            localStorage.setItem('triathlon_plans', JSON.stringify(plans));
+        }
+
+        function saveApiKey() {
+            const key = document.getElementById('api-key').value.trim();
+            localStorage.setItem('gemini_api_key', key);
+        }
+
+        async function askAI(mode) {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            const outputDiv = document.getElementById('ai-output');
+
+            if (!apiKey) {
+                outputDiv.innerText = "⚠️ Bitte gib zuerst deinen Google Gemini API-Schlüssel im Eingabefeld oben ein!\n(Ein kostenloser Key kann auf aistudio.google.com erstellt werden).";
+                return;
+            }
+
+            outputDiv.innerText = "🤖 KI analysiert deinen Plan... Bitte einen Moment Geduld.";
+
+            const planString = JSON.stringify(plans[currentWeek], null, 2);
+            let prompt = "";
+
+            if (mode === 'evaluate') {
+                prompt = `Du bist ein professioneller Triathlon-Coach für den Ironman 70.3 Zell am See. Bewerte folgenden Wochenplan (Woche ${currentWeek}) eines ambitionierten Nachwuchs-Athleten (Rad-FTP 360W, Laufen 5k 22:31min bei ~380W rFTP, Schwimmen Swolf ~38). Sag ihm kurz und prägnant, ob die Belastung gut ausbalanciert ist oder wo Überlastungsgefahren bestehen:\n${planString}`;
+            } else {
+                prompt = `Du bist ein professioneller Triathlon-Coach. Mache konkrete Verbesserungsvorschläge oder erstelle eine spannende Variation für folgenden Wochenplan (Woche ${currentWeek}), damit keine Langeweile aufkommt:\n${planString}`;
+            }
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
+
+                const data = await response.json();
+                if (data.candidates && data.candidates[0].content.parts[0].text) {
+                    outputDiv.innerText = data.candidates[0].content.parts[0].text;
+                } else {
+                    outputDiv.innerText = "❌ Fehler bei der Verarbeitung der KI-Antwort. Prüfe deinen API-Key.";
+                }
+            } catch (e) {
+                outputDiv.innerText = "❌ Fehler bei der Netzwerkanfrage: " + e.message;
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
